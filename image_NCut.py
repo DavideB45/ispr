@@ -34,5 +34,7 @@ def imageNCut(image, mask, num_sections:int=1000, render:bool=False):
     plt.show()
 
 if __name__ == '__main__':
-    img, mask = get_image(27)
-    imageNCut(img, mask, num_sections=300, render=True)
+    imgEasy = [27, 128]
+    for i in imgEasy:
+        img, mask = get_image(i)
+        imageNCut(img, mask, num_sections=300, render=True)
