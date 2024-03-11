@@ -20,7 +20,5 @@ def super_pixelize(image, regions:int=100, render:bool=False):
     return silc.getLabels()
 
 if __name__ == '__main__':
-    img, _ = get_image(26)
-    super_pixelize(img, regions=300, render=True)
-    img, _ = get_image(100)
-    super_pixelize(img, regions=300, render=True)
+    img, _ = get_image(27)
+    super_pixelize(img, regions=200, render=True)
