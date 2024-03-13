@@ -5,24 +5,21 @@ from matplotlib import pyplot as plt
 import numpy as np
 from skimage import graph, color
 from sklearn.metrics import jaccard_score
+from super_pixel import super_pixelize
 from show_segmentation_sample import get_image
 
-def imageNCut(image, mask, num_sections:int=1000, render:bool=False) -> cv2.typing.MatLike:
-    # Create the super pixels
-    # compute region size based on number of clusters
-    region_size = int(math.sqrt(image.shape[0]*image.shape[1]/num_sections))
-    # apply SLIC and get the contours
-    slic = cv2.ximgproc.createSuperpixelSLIC(image, region_size=region_size)
-    slic.iterate()
-    labels1 = slic.getLabels()
-    out1 = color.label2rgb(labels1, img, kind='avg', bg_label=0)
-    gr = graph.rag_mean_color(image, labels1, mode='similarity')
+def imageNCut(image, mask, num_sections:int=1000, thresh=0.02, num_cuts=20, max_edge=0.9, render:bool=False) -> cv2.typing.MatLike:
+
     start = time.time()
-    lables2 = graph.cut_normalized(labels=labels1, rag=gr, thresh=0.01, num_cuts=10, max_edge=0.8)
+    labels1 = super_pixelize(image, num_sections)
+    gr = graph.rag_mean_color(image, labels1, mode='similarity')
+    lables2 = graph.cut_normalized(labels=labels1, rag=gr, thresh=thresh, num_cuts=num_cuts, max_edge=max_edge)
     if render: print('Time:', time.time()-start)
-    out2 = color.label2rgb(lables2, image, kind='avg')
+    
 
     if render:
+        out1 = color.label2rgb(labels1, img, kind='avg', bg_label=0)
+        out2 = color.label2rgb(lables2, image, kind='avg')
         fig, ax = plt.subplots(nrows=2,ncols=2, sharex=True, sharey=True, figsize=(6, 8))
         ax[0][0].imshow(out1)
         ax[1][0].imshow(out2)
@@ -30,12 +27,9 @@ def imageNCut(image, mask, num_sections:int=1000, render:bool=False) -> cv2.typi
         ax[1][1].imshow(image)
         plt.tight_layout()
         plt.show()
-    #unique, counts = np.unique(lables2, return_counts=True)
-    #counts, unique = zip(*sorted(zip(counts, unique), reverse=True))
     return lables2
 
 def defineHorse(predictedClasses:cv2.typing.MatLike, groundTruth:cv2.typing.MatLike) -> cv2.typing.MatLike:
-    begin = time.time()
     insideClasses = {}
     unique, counts = np.unique(predictedClasses, return_counts=True)
     validClasses = []
@@ -77,18 +71,12 @@ def defineHorse(predictedClasses:cv2.typing.MatLike, groundTruth:cv2.typing.MatL
 
 def computeIoU(predictedClasses:cv2.typing.MatLike, groundTruth:cv2.typing.MatLike, render:bool=False) -> float:
     begin = time.time()
-    intersection = 0
-    union = 0
-    for i in range(len(predictedClasses)):
-        for j in range(len(predictedClasses[0])):
-            if groundTruth[i][j] == 1 or predictedClasses[i][j] == 1:
-                union += 1
-            if groundTruth[i][j] == 1 and predictedClasses[i][j] == 1:
-                intersection += 1
-    res = intersection/union
-    end = time.time()
+    intersection = np.logical_and(predictedClasses, groundTruth)
+    union = np.logical_or(predictedClasses, groundTruth)
+    res = np.sum(intersection)/np.sum(union)
+
     if render:
-        print('time: ', end - begin)
+        print('time: ', time.time() - begin)
     return res
 
 if __name__ == '__main__':
