@@ -19,7 +19,7 @@ def imageNCut(image, mask, num_sections:int=1000, render:bool=False) -> cv2.typi
     gr = graph.rag_mean_color(image, labels1, mode='similarity')
     start = time.time()
     lables2 = graph.cut_normalized(labels=labels1, rag=gr, thresh=0.01, num_cuts=10, max_edge=0.8)
-    print('Time:', time.time()-start)
+    if render: print('Time:', time.time()-start)
     out2 = color.label2rgb(lables2, image, kind='avg')
 
     if render:
@@ -72,29 +72,29 @@ def defineHorse(predictedClasses:cv2.typing.MatLike, groundTruth:cv2.typing.MatL
             predictedClasses[predictedClasses == i] = 1
         else:
             predictedClasses[predictedClasses == i] = 0
-    print('valid classes: ', validClasses)
-    end = time.time()
-    print('time: ', end - begin)
+
     return predictedClasses
 
-def computeIoU(predictedClasses:cv2.typing.MatLike, groundTruth:cv2.typing.MatLike) -> float:
+def computeIoU(predictedClasses:cv2.typing.MatLike, groundTruth:cv2.typing.MatLike, render:bool=False) -> float:
     begin = time.time()
-    res = jaccard_score(predictedClasses, groundTruth)
+    intersection = 0
+    union = 0
+    for i in range(len(predictedClasses)):
+        for j in range(len(predictedClasses[0])):
+            if groundTruth[i][j] == 1 or predictedClasses[i][j] == 1:
+                union += 1
+            if groundTruth[i][j] == 1 and predictedClasses[i][j] == 1:
+                intersection += 1
+    res = intersection/union
     end = time.time()
-    print('IoU: ', res)
-    print('time: ', end - begin)
+    if render:
+        print('time: ', end - begin)
+    return res
 
 if __name__ == '__main__':
     imgEasy = [27, 128]
-    imgEasy = [27]
     for i in imgEasy:
         img, mask = get_image(i)
         regions = imageNCut(img, mask, num_sections=300, render=True)
         prediction = defineHorse(regions, mask)
-        prediction[prediction == 1] = 255
-        mask[mask == 1] = 255
-        out2 = color.label2rgb(prediction, img, colors= [[0,0,0],[0,0,255]], kind='avg')
-        cv2.imshow('Prediction', out2)
-        cv2.imshow('Truth', mask)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        print('IoU: ',computeIoU(prediction, mask))
