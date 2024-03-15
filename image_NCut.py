@@ -8,7 +8,7 @@ from sklearn.metrics import jaccard_score
 from super_pixel import super_pixelize
 from show_segmentation_sample import get_image
 
-def imageNCut(image, mask, num_sections:int=1000, thresh=0.02, num_cuts=20, max_edge=0.9, render:bool=False) -> cv2.typing.MatLike:
+def imageNCut(image, mask, num_sections:int=300, thresh=0.02, num_cuts=20, max_edge=0.9, render:bool=False) -> cv2.typing.MatLike:
 
     start = time.time()
     labels1 = super_pixelize(image, num_sections)
