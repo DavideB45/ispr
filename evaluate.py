@@ -10,8 +10,10 @@ bottom3 = [{1:1.0}, {1:1.0}, {1:1.0}]
 skipped_images = []
 for i in range(1, totExamples+1):
     img, mask = get_image(i)
+    #apply gaussian blur to the image
+    #img = cv2.GaussianBlur(img, (3, 3), sigmaX=0, sigmaY=0)
     try:
-        regions = imageNCut(img, mask, num_sections=300, render=False)
+        regions = imageNCut(img, mask, num_sections=500, num_cuts=500)
         prediction = defineHorse(regions, mask)
         arrayIoU.append(computeIoU(prediction, mask))
     except ArpackError:
