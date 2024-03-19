@@ -69,7 +69,9 @@ def defineHorse(predictedClasses:cv2.typing.MatLike, groundTruth:cv2.typing.MatL
 
     return predictedClasses
 
-def computeIoU(predictedClasses:cv2.typing.MatLike, groundTruth:cv2.typing.MatLike, render:bool=False) -> float:
+def computeIoU(predictedClasses:cv2.typing.MatLike, 
+               groundTruth:cv2.typing.MatLike, 
+               render:bool=False) -> float:
     begin = time.time()
     intersection = np.logical_and(predictedClasses, groundTruth)
     union = np.logical_or(predictedClasses, groundTruth)
@@ -85,4 +87,13 @@ if __name__ == '__main__':
         img, mask = get_image(i)
         regions = imageNCut(img, mask, num_sections=300, render=True)
         prediction = defineHorse(regions, mask)
+        #colr the image based on the prediction
+        image = cv2.imread('weizmann_horse_db/horse/horse'+str(i).zfill(3)+'.png')
+        for x in range(len(prediction)):
+            for y in range(len(prediction[0])):
+                if prediction[x][y] == 1:
+                    image[x][y][1] = (image[x][y][1]/2 + 255/2)
+        cv2.imshow('Result', image)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
         print('IoU: ',computeIoU(prediction, mask))
