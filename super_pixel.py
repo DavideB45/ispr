@@ -21,4 +21,5 @@ def super_pixelize(image, regions:int=100, render:bool=False):
 
 if __name__ == '__main__':
     img, _ = get_image(27)
+    img = cv2.GaussianBlur(img, (5, 5), sigmaX=0, sigmaY=0)
     super_pixelize(img, regions=200, render=True)

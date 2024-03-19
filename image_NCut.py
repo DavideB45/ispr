@@ -82,10 +82,10 @@ def computeIoU(predictedClasses:cv2.typing.MatLike,
     return res
 
 if __name__ == '__main__':
-    imgEasy = [27, 128]
+    imgEasy = [27, 128, 320, 182, 323]
     for i in imgEasy:
         img, mask = get_image(i)
-        regions = imageNCut(img, mask, num_sections=300, render=True)
+        regions = imageNCut(img, mask, num_sections=300, render=False)
         prediction = defineHorse(regions, mask)
         #colr the image based on the prediction
         image = cv2.imread('weizmann_horse_db/horse/horse'+str(i).zfill(3)+'.png')
