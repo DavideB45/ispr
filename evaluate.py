@@ -11,7 +11,7 @@ skipped_images = []
 for i in range(1, totExamples+1):
     img, mask = get_image(i)
     #apply gaussian blur to the image
-    #img = cv2.GaussianBlur(img, (3, 3), sigmaX=0, sigmaY=0)
+    img = cv2.GaussianBlur(img, (5, 5), sigmaX=5, sigmaY=5)
     try:
         regions = imageNCut(img, mask, num_sections=500, num_cuts=500)
         prediction = defineHorse(regions, mask)
@@ -43,3 +43,24 @@ for i in skipped_images:
     print(f'Image {i} was skipped due to ArpackError')
 print('\nMean IoU: ', np.mean(arrayIoU))
 print('Std dev: ', np.std(arrayIoU))
+
+#show the histogram
+import matplotlib.pyplot as plt
+
+totSplit = 10
+split = [0 for i in range(totSplit)]
+categories = [f'{i*10}-{(i+1)*10}' for i in range(totSplit)]
+for e in range(len(arrayIoU)):
+    split[int(arrayIoU[e]*totSplit)] += 1
+
+print(split)
+plt.bar(categories, split)
+ax = plt.gca()
+for tick in ax.get_xticklabels():
+    tick.set_rotation(45)
+plt.title('IoU distribution')
+plt.xlabel('IoU')
+plt.ylabel('Frequency')
+#save the histogram
+plt.savefig('IoU_distribution.png')
+plt.show()
