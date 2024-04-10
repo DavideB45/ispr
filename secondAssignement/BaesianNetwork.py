@@ -129,3 +129,14 @@ class BaesianNetwork:
         self.nodes = nodes
         self.graph = {}
         self.variables = {}
+
+if __name__ == '__main__':
+    cpt = CPT([('A', 2), ('B', 2)])
+    cpt.setDistribution({'A':0, 'B':0}, Bernoulli(0.1))
+    cpt.setDistribution({'A':0, 'B':1}, Bernoulli(0.1))
+    cpt.setDistribution({'A':1, 'B':0}, Multinomial([0.1, 0.5, 0.4]))
+    cpt.setDistribution({'A':1, 'B':1}, Multinomial([0.1, 0.5, 0.4]))
+    print(cpt.getDistribution({'A':0, 'B':0}).sample())
+    print(cpt.getDistribution({'A':0, 'B':1}))
+    print(cpt.getDistribution({'A':1, 'B':0}).sample())
+    print(cpt.getDistribution({'A':1, 'B':1}))
