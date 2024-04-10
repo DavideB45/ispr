@@ -7,7 +7,38 @@
 #   - sample: sample from the node (randomly given all parents outputs) -> call update on children
 #   - update: pass the new evidence to the node (from the parent) -> call sample on self
 
+import random
 
+
+class Distribution:
+    def sample(self):
+        ...
+
+class Bernoulli(Distribution):
+    def __init__(self, p:float):
+        self.p = p
+    def __str__(self):
+        return f'p={self.p}'
+
+    def sample(self):
+        return 0 if random.random() < self.p else 1
+    
+class Multinomial(Distribution):
+    def __init__(self, pList:list[float]):
+        self.pList = pList
+        if sum(pList) != 1:
+            raise('The sum of the probabilities should be 1')
+    def __str__(self):
+        return f'pList={self.pList}'
+    
+    def sample(self):
+        r = random.random()
+        for i, p in enumerate(self.pList):
+            if r < p:
+                return i
+            r -= p
+        return len(self.pList)-1
+    
 class CPT:
     '''
     A Fancy Hash table
