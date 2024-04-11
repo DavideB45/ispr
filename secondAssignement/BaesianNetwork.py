@@ -11,7 +11,7 @@ import random
 
 
 class Distribution:
-    def sample(self):
+    def sample(self) -> int:
         ...
 
 class Bernoulli(Distribution):
@@ -20,7 +20,7 @@ class Bernoulli(Distribution):
     def __str__(self):
         return f'p={self.p}'
 
-    def sample(self):
+    def sample(self) -> int:
         return 0 if random.random() < self.p else 1
     
 class Multinomial(Distribution):
@@ -31,7 +31,7 @@ class Multinomial(Distribution):
     def __str__(self):
         return f'pList={self.pList}'
     
-    def sample(self):
+    def sample(self) -> int:
         r = random.random()
         for i, p in enumerate(self.pList):
             if r < p:
@@ -115,7 +115,8 @@ class Node:
     def __str__(self):
         return f'{self.name} -> ({self.parents})'
     
-    def sample(self):
+    def sample(self) -> int:
+        cpt.getDistribution(self.observed).sample()
         pass
 
     def update(self, parent:str, value:int):
