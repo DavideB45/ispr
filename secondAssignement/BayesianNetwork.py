@@ -21,7 +21,7 @@ class Bernoulli(Distribution):
         return f'p={self.p}'
 
     def sample(self) -> int:
-        return 0 if random.random() < self.p else 1
+        return 1 if random.random() < self.p else 0
     
 class Multinomial(Distribution):
     def __init__(self, pList:list[float]):
@@ -38,6 +38,17 @@ class Multinomial(Distribution):
                 return i
             r -= p
         return len(self.pList)-1
+
+class UniformMultinomial(Multinomial):
+    def __init__(self, n:int):
+        self.n = n
+        self.pList = [1/n]*n
+
+    def __str__(self):
+        return f'n={self.n}'
+
+    def sample(self) -> int:
+        return random.randint(0, self.n-1)
     
 class CPT:
     '''
@@ -49,7 +60,7 @@ class CPT:
     # alernatively return a CPT resticted to the unobserved parents
     # is this just a big matrix?
     #take a list of touple: [(id, max1), (id, max2), ...]
-    def __init__(self, conditioners):
+    def __init__(self, conditioners:list[tuple[str, int]] = []):
         self.conditionersIdOrder = [name for name, _ in conditioners]
         self.table = {}
         self.keys = ['']
@@ -110,26 +121,107 @@ class Node:
         self.parents = parents
         self.cpt = cpt
         self.children = []
-        self.observed = None
+        for parent in parents:
+            parent.addChild(self)
+        #current value of the node
+        self.value = None
+        #current value of the parents
+        self.observed = {}
 
     def __str__(self):
         return f'{self.name} -> ({self.parents})'
     
+    def addChild(self, child):
+        self.children.append(child)
+    
     def sample(self) -> int:
-        cpt.getDistribution(self.observed).sample()
-        pass
+        self.value = self.cpt.getDistribution(self.observed).sample()
+        print(f'{self.name} -> {self.value}')
+        for child in self.children:
+            child.update(self.id, self.value)
 
     def update(self, parent:str, value:int):
-        pass
+        self.observed[parent] = value
+        if len(self.parents) == len(self.observed):
+            # if something does not work maybe 
+            # make a full check of the parents
+            self.sample()
+    
+    def reset(self):
+        self.value = None
+        self.observed = {}
+        
 
-class BaesianNetwork:
+class BayesianNetwork:
     # check if the graph is acyclic
-    # check if all names are unique
     # check if all tables are complete
-    def __init__(self, nodes):
-        self.nodes = nodes
-        self.graph = {}
-        self.variables = {}
+    def __init__(self, nodes:dict[str, Node]):
+        self._nodes = nodes
+        self._checkUniqueNames()
+        self._checkCompleteTables()
+        self._checkAcyclic()
+        print(nodes)
+        self._orphans = self._computeOrphans()
+
+    def _computeOrphans(self)->list[Node]:
+        orphans = []
+        for node in self._nodes.values():
+            if len(node.parents) == 0:
+                print('orphan', node.name)
+                orphans.append(node)
+        return orphans
+    
+    def _checkAcyclic(self):
+        # Create a dictionary to store the in-degree of each node
+        in_degree = {node: 0 for node in self._nodes.values()}
+        # Calculate the in-degree of each node
+        for node in self._nodes.values():
+            for child in node.children:
+                in_degree[child] += 1
+        # Create a queue to store nodes with in-degree 0
+        queue = [node for node, degree in in_degree.items() if degree == 0]
+        # Perform exploration
+        while queue:
+            node = queue.pop(0)
+            for child in node.children:
+                in_degree[child] -= 1
+                if in_degree[child] == 0:
+                    queue.append(child)
+        # Check if there are any nodes with non-zero in-degree
+        for degree in in_degree.values():
+            if degree != 0:
+                raise Exception('Graph is cyclic')
+
+    def _checkUniqueNames(self):
+        for node in self._nodes.values():
+            for otherNode in self._nodes.values():
+                if node != otherNode and node.name == otherNode.name:
+                    raise('Names are not unique')
+                
+    def _checkCompleteTables(self):
+        for node in self._nodes.values():
+            if not node.cpt.checkComplete():
+                raise('Not all tables are complete')
+    
+    def sample(self) -> dict[str:int]:
+        print("orphans", self._orphans)
+        for orphan in self._orphans:
+            orphan.sample()
+        results = {}
+        for node in self._nodes.values():
+            results[node.id] = node.value
+        return results
+    
+    def sampleN(self, n:int) -> list[dict[str,int]]:
+        samples = []
+        for _ in range(n):
+            samples.append(self.sample())
+            self.reset()
+        return samples
+    
+    def reset(self):
+        for node in self._nodes.values():
+            node.reset()
 
 if __name__ == '__main__':
     cpt = CPT([('A', 2), ('B', 2)])
