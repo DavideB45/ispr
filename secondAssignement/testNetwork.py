@@ -45,3 +45,5 @@ for sample in samples:
 
 print("P(Healty|WantHealty)    = ", countWantHealtyAndHealty/countWantHealty)
 print("P(Healty|NotWantHealty) = ", countWantHealtyAndNotHealty/(totSamples - countWantHealty))
+
+#TODO: use multinomial to check if the distribution is correct
