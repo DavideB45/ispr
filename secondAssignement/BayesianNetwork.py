@@ -157,7 +157,7 @@ class BayesianNetwork:
     # check if all tables are complete
     def __init__(self, nodes:dict[str, Node]):
         self._nodes = nodes
-        self._checkUniqueNames()
+        self._checkUniqueId()
         self._checkCompleteTables()
         self._checkAcyclic()
         print(nodes)
@@ -192,16 +192,17 @@ class BayesianNetwork:
             if degree != 0:
                 raise Exception('Graph is cyclic')
 
-    def _checkUniqueNames(self):
+    def _checkUniqueId(self):
         for node in self._nodes.values():
             for otherNode in self._nodes.values():
-                if node != otherNode and node.name == otherNode.name:
-                    raise('Names are not unique')
+                if node != otherNode and node.id == otherNode.id:
+                    raise(f'Ids are not unique: {node.name} and {otherNode.name} have id {node.id}')
                 
     def _checkCompleteTables(self):
         for node in self._nodes.values():
             if not node.cpt.checkComplete():
-                raise('Not all tables are complete')
+                print(f'Not all tables are complete, check -> {node.name} <-')
+                raise(f'Not all tables are complete, check -> {node.name} <-')
     
     def sample(self) -> dict[str:int]:
         print("orphans", self._orphans)
