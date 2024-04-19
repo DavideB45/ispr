@@ -176,6 +176,7 @@ class BayesianNetwork:
         in_degree = {node: 0 for node in self._nodes.values()}
         # Calculate the in-degree of each node
         for node in self._nodes.values():
+            #could directly use the number of parents
             for child in node.children:
                 in_degree[child] += 1
         # Create a queue to store nodes with in-degree 0
