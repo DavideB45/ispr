@@ -33,10 +33,17 @@ class DenoisingAutoencoder(nn.Module):
         return x
     
     def lossMSE(self, x, x_noisy) -> torch.Tensor:
-        criterion = nn.MSELoss()
+        criterion = nn.BCELoss()
         return criterion(x, x_noisy)
     
-    def train(self, device, epochs=10, batch_size=128, lr=0.001, validation_split=0.1, noise_factor=0.5, weight_decay=1e-5) -> dict:
+    def lossStrange(self, x, x_noisy) -> torch.Tensor:
+        mse = nn.MSELoss()(x, x_noisy)
+        jac = torch.autograd.functional.jacobian(self.encoder, x, create_graph=True)
+        normJac = torch.norm(jac, p='fro')
+        return mse + normJac
+
+    
+    def train(self, device, epochs=10, batch_size=128, lr=0.001, validation_split=0.1, noise_factor=0.5, weight_decay=1e-5, loss_func=lossMSE, noise=True) -> dict:
         # stup training
         optimizer = torch.optim.Adam(self.parameters(), lr=lr, weight_decay=weight_decay)
         x_train, x_val, _ = load_mnist(validation_split)
@@ -51,24 +58,31 @@ class DenoisingAutoencoder(nn.Module):
         # traininig loop
         for epoch in range(epochs):
             for data in train_loader:
-                img = data
+                img = data.to(device)
                 img = img.view(img.size(0), -1)
-                img_noisy = img + noise_factor * torch.randn(img.size(), device=device)
-                img_noisy = torch.clamp(img_noisy, 0., 1.)
+                if noise:
+                    img_noisy = img + noise_factor * torch.randn(img.size(), device=device)
+                    img_noisy = torch.clamp(img_noisy, 0., 1.)
+                else:
+                    img_noisy = img
                 # ===================forward=====================
                 output = self(img_noisy)
-                loss = self.lossMSE(output, img)
+                loss = loss_func(output, img)
                 # ===================backward====================
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
+                print(f'epoch [{epoch + 1}/{epochs}], loss:{loss.item():.4f}     ', end='\r')
             # ===================log========================
 
-            img_val_noisy = x_val + noise_factor * torch.randn(x_val.size(), device=device)
-            img_val_noisy = torch.clamp(img_val_noisy, 0., 1.)
-            img_val_noisy = img_val_noisy.to(device)
+            if noise:
+                img_val_noisy = x_val + noise_factor * torch.randn(x_val.size(), device=device)
+                img_val_noisy = torch.clamp(img_val_noisy, 0., 1.)
+                img_val_noisy = img_val_noisy.to(device)
+            else:
+                img_val_noisy = x_val
             output_val = self(img_val_noisy)
-            loss_val = self.lossMSE(output_val, x_val)
+            loss_val = loss_func(output_val, x_val)
             history['val_loss'].append(loss_val.item())
 
             '''img_tr_noisy = x_train + noise_factor * torch.randn(x_train.size(), device=device)
@@ -93,12 +107,15 @@ if __name__ == '__main__':
     device = torch.device('mps')
     dae = DenoisingAutoencoder()
     history = dae.train(device=device,
-                        epochs=90, 
-                        batch_size=2000, 
+                        epochs=30, 
+                        batch_size=300, 
                         lr=0.002, 
                         validation_split=0.1, 
-                        noise_factor=0.5,
-                        weight_decay=0)
+                        noise_factor=0,
+                        weight_decay=0,
+                        loss_func=dae.lossStrange,
+                        noise=False
+                        )
     
     plot_loss(history)
 
