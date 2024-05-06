@@ -37,7 +37,7 @@ class DenoisingAutoencoder(nn.Module):
         return criterion(x, x_noisy)
     
     def lossStrange(self, x, x_noisy) -> torch.Tensor:
-        mse = nn.MSELoss()(x, x_noisy)
+        mse = nn.functional.mse_loss(x, x_noisy)
         jac = torch.autograd.functional.jacobian(self.encoder, x, create_graph=True)
         normJac = torch.norm(jac, p='fro')
         return mse + normJac
@@ -81,9 +81,10 @@ class DenoisingAutoencoder(nn.Module):
                 img_val_noisy = img_val_noisy.to(device)
             else:
                 img_val_noisy = x_val
-            output_val = self(img_val_noisy)
-            loss_val = loss_func(output_val, x_val)
-            history['val_loss'].append(loss_val.item())
+            with torch.no_grad():
+                output_val = self(img_val_noisy)
+                loss_val = loss_func(output_val, x_val)
+                history['val_loss'].append(loss_val.item())
 
             '''img_tr_noisy = x_train + noise_factor * torch.randn(x_train.size(), device=device)
             img_tr_noisy = torch.clamp(img_tr_noisy, 0., 1.)
