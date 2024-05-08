@@ -41,6 +41,9 @@ class DenoisingAutoencoder(nn.Module):
     
     def lossStrange(self, x, x_noisy, lambdaParameter) -> torch.Tensor:
         mse = nn.functional.mse_loss(x, x_noisy)
+        print(self.encoder)
+        print("change here the loss computation")
+        exit()
         frobNorm = torch.norm(self.encoder[0].weight, p='fro')
         return mse + lambdaParameter*frobNorm
     
@@ -112,13 +115,13 @@ if __name__ == '__main__':
                         batch_size=10000, 
                         lr=0.001, 
                         validation_split=0.1, 
-                        noise_factor=0.5,# to change encoder kynd
-                        #noise_factor=0,# to change encoder kynd
+                        #noise_factor=0.5,# to change encoder kynd
+                        noise_factor=0,# to change encoder kynd
                         weight_decay=0,
-                        loss_func=dae.lossMSE,# to change encoder kynd
-                        #loss_func=lambda x, y,: dae.lossStrange(x,y,0.3),# to change encoder kynd
-                        noise=True# to change encoder kynd
-                        #noise=False# to change encoder kynd
+                        #loss_func=dae.lossMSE,# to change encoder kynd
+                        loss_func=lambda x, y,: dae.lossStrange(x,y,0.3),# to change encoder kynd
+                        #noise=True# to change encoder kynd
+                        noise=False# to change encoder kynd
                         )
     end = time.time()
     print(f'Training time: {end - start:.2f}s')
