@@ -1,9 +1,10 @@
+from typing import Tuple
 from keras.datasets import mnist
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
 
-def load_mnist(validation_split:float=0.2) -> tuple:
+def load_mnist(validation_split:float=0.2) -> Tuple[torch.Tensor,torch.Tensor,torch.Tensor]:
     (x_train, _), (x_test, _) = mnist.load_data()
     # preprocess development set
     x_train = x_train.astype('float32') / 255.
