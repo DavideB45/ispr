@@ -72,7 +72,10 @@ class Autoencoder(nn.Module):
         #print(x_noisy.shape)
         return nn.functional.mse_loss(x, x_noisy)
     
-    def _lossStrange(self, x:torch.Tensor, x_noisy:torch.Tensor, x_enc:torch.Tensor, lambdaParameter:float) -> torch.Tensor:
+    def _lossStrange(self, x:torch.Tensor, 
+                     x_noisy:torch.Tensor, 
+                     x_enc:torch.Tensor, 
+                     lambdaParameter:float) -> torch.Tensor:
         '''
         x: the output of the autoencoder
         x_noisy: the input of the autoencoder
