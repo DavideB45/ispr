@@ -5,7 +5,10 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from thirdAssignement.denoisingMLP import Autoencoder
 from thirdAssignement.utilities import load_mnist
 
-path = 'thirdAssignement/model.pth'
+path = './thirdAssignement/model'
+files = os.listdir(path)
+print(files)
+exit()
 
 model = Autoencoder()
 model.load_state_dict(torch.load(path))
