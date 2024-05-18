@@ -85,9 +85,12 @@ class Autoencoder(nn.Module):
         x_noisy.grad.data.zero_()
         return mse + lambdaParameter*reg_loss
     
-
+    def accuracy(self, x:torch.Tensor, x_noisy:torch.Tensor) -> float:
+        with torch.no_grad():
+            x_reconstructed = self(x_noisy)
+            return 1 - torch.mean(torch.abs(x - x_reconstructed)).item()
     
-    def train(self, device, epochs=10, batch_size=128, lr=0.001, validation_split=0.1, regularize=0.5, weight_decay=1e-5, validation_noise =0.5) -> dict:
+    def train(self, device, epochs=10, batch_size=128, lr=0.001, validation_split=0.1, regularize=0.5, weight_decay=1e-5) -> dict:
         '''
         device: the device in which to compute the stuff
         epoch: number of epoch
@@ -107,12 +110,15 @@ class Autoencoder(nn.Module):
         train_loader = torch.utils.data.DataLoader(x_train, batch_size=batch_size, shuffle=True)
         history = {
             'tr_loss': [],
-            'val_loss': []
+            'val_loss': [],
+            'tr_acc': [],
+            'val_acc': []
         }
         self.to(device)
         begin = time.time()
         # traininig loop
         for epoch in range(epochs):
+            tr_acc = 0
             for data in train_loader:
                 img:torch.Tensor = data.to(device)
                 if self.ae_type == 'DAE':
@@ -125,6 +131,7 @@ class Autoencoder(nn.Module):
                 # ===================forward=====================
                 output, enc = self(input_img, return_enc=True)
                 loss = self.loss_for_gradient_descent(output, input_img, enc, regularize)
+                tr_acc += self.accuracy(img, img)
                 # ===================backward====================
                 optimizer.zero_grad()
                 loss.backward()
@@ -132,7 +139,7 @@ class Autoencoder(nn.Module):
             # ===================log========================
 
             if self.ae_type == 'DAE':
-                img_val_noisy = x_val + validation_noise * torch.randn(x_val.size(), device=device)
+                img_val_noisy = x_val + regularize * torch.randn(x_val.size(), device=device)
                 img_val_noisy = torch.clamp(img_val_noisy, 0., 1.)
                 img_val_noisy = img_val_noisy.to(device)
                 with torch.no_grad():
@@ -140,6 +147,8 @@ class Autoencoder(nn.Module):
                     loss_val = self._lossMSE(output_val, img_val_noisy, _, _)
                     history['val_loss'].append(loss_val.item())
                     history['tr_loss'].append(loss.item())
+                    history['tr_acc'].append(tr_acc/len(train_loader))
+                    history['val_acc'].append(self.accuracy(x_val, x_val))
             if self.ae_type == 'CAE':
                 img_val_noisy = x_val
                 img_val_noisy.requires_grad_(True)
@@ -149,10 +158,16 @@ class Autoencoder(nn.Module):
                 optimizer.zero_grad()
                 history['val_loss'].append(loss_val.item())
                 history['tr_loss'].append(loss.item())
+                history['tr_acc'].append(tr_acc/len(train_loader))
+                history['val_acc'].append(self.accuracy(x_val, x_val))
 
             now = time.time()
             eta = (epochs - epoch -1)/((epoch + 1)/(now - begin))
-            print(f'epoch [{epoch + 1}/{epochs}], loss:{loss.item():.4f}, val_loss:{loss_val.item():.4f}\teta = {int(eta//60):02d}m {int(eta%60):02d}s    ', end='\r')
+            print(f'epoch [{epoch + 1}/{epochs}], loss:{loss.item():.4f}, \
+val_loss:{loss_val.item():.4f}, \
+tr_acc:{history["tr_acc"][-1]:.2f}, \
+val_acc:{history["val_acc"][-1]:.2f}\
+\teta = {int(eta//60):02d}m {int(eta%60):02d}s    ', end='\r')
             if epoch % (epochs // 5) == 0 or epoch == epochs - 1:
                 print()
         return history
@@ -165,53 +180,26 @@ if __name__ == '__main__':
                           else 'mps' if torch.backends.mps.is_available()
                           else 'cpu')
     device = torch.device('mps')
-    dae = Autoencoder(
-        activation=nn.LeakyReLU,
-        ae_type='CAE'
-    )
     start = time.time()
-    history = dae.train(device=device,
-                        epochs=50, 
-                        batch_size=10000, 
-                        lr=0.005, 
-                        validation_split=0.01, 
-                        regularize=0.01,
-                        weight_decay=0,
-                        )
+    learning_rate = 0.005
+    for ae_type in ['DAE', 'CAE']:
+        for regularize in [0.1, 0.2, 0.4, 0.5, 0.8]:
+            print(f'Training {ae_type} with regularize {regularize}')
+            model = Autoencoder(
+                activation=nn.LeakyReLU,
+                ae_type=ae_type
+            )
+            history = model.train(device=device,
+                                epochs=40, 
+                                batch_size=10000, 
+                                lr=learning_rate, 
+                                validation_split=0.01, 
+                                regularize=regularize,
+                                weight_decay=0,
+                                )
+            #plot_loss(history)
+            print('accuracy:', history['val_acc'][-1])
+            print('@'+'='*80+'@')
+            torch.save(model.state_dict(), f'./thirdAssignement/models/{ae_type}_{regularize}.pth')
     end = time.time()
     print(f'Training time: {end - start:.2f}s')
-    plot_loss(history)
-    #exit()
-    # Plotting the original and reconstructed images
-    _, _, x_test = load_mnist()
-    x_test = x_test.view(-1,1,28,28)
-    x_test = x_test.to(device)
-    x_test_noisy = x_test + 0.5 * torch.randn(x_test.size(), device=device)
-    x_test_noisy = torch.clamp(x_test_noisy, 0., 1.)
-    x_test_noisy = x_test_noisy.to(device)
-    with torch.no_grad():
-        x_reconstructed = dae(x_test_noisy)
-    n = 10
-    plt.figure(figsize=(n*3, 4))
-    for i in range(n):
-        # display noisy
-        ax = plt.subplot(3, n, i + 1)
-        plt.imshow(x_test_noisy[i].cpu().numpy().reshape(28, 28))
-        plt.gray()
-        ax.get_xaxis().set_visible(False)
-        ax.get_yaxis().set_visible(False)
-
-        # display reconstruction
-        ax = plt.subplot(3, n, i + 1 + n)
-        plt.imshow(x_reconstructed[i].cpu().numpy().reshape(28, 28))
-        plt.gray()
-        ax.get_xaxis().set_visible(False)
-        ax.get_yaxis().set_visible(False)
-
-        #display original
-        ax = plt.subplot(3, n, i + 1 + 2*n)
-        plt.imshow(x_test[i].cpu().numpy().reshape(28, 28))
-        plt.gray()
-        ax.get_xaxis().set_visible(False)
-        ax.get_yaxis().set_visible(False)
-    plt.show()
