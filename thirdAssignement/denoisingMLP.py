@@ -18,42 +18,76 @@ class Autoencoder(nn.Module):
             raise Exception('the type of autoecoder should be one between [\'DAE\',\'CAE\']')
         super(Autoencoder, self).__init__()
         self.encoder = nn.Sequential(
-            nn.Linear(in_features=28*28, out_features=700),
+            nn.Conv2d(1, 16, 3, stride=1, padding=1),
             activation(),
-            nn.BatchNorm1d(700),
-            nn.Linear(in_features=700, out_features=10),
+            nn.BatchNorm2d(16),
+            nn.MaxPool2d(2, stride=2),
+            
+            nn.Conv2d(16, 8, 3, stride=1, padding=1),
             activation(),
+            nn.BatchNorm2d(8),
+
+            nn.Flatten(),
+            nn.Linear(8*14*14, 20),
+            activation(),
+            nn.BatchNorm1d(20)
         )
         self.decoder = nn.Sequential(
-            nn.Linear(in_features=10, out_features=700),
+            nn.Linear(20, 8*14*14),
             activation(),
-            nn.BatchNorm1d(700),
-            nn.Linear(in_features=700, out_features=28*28),
+            nn.BatchNorm1d(8*14*14),
+            nn.Unflatten(1, (8, 14, 14)),
+
+            nn.ConvTranspose2d(8, 16, 5, stride=1, padding=1),
+            activation(),
+            nn.BatchNorm2d(16),
+            
+            nn.ConvTranspose2d(16, 2, 2, stride=2, padding=1),
+            activation(),
+            nn.BatchNorm2d(2),
+
+            nn.ConvTranspose2d(2, 2, 1, stride=1, padding=1),
+            activation(),
+            nn.BatchNorm2d(2),
+
+            nn.Conv2d(2, 1, 3, stride=1, padding=1),
+            activation(),
+            nn.BatchNorm2d(1),
+            nn.Conv2d(1, 1, 3, stride=1, padding=1),
             nn.Sigmoid()
         )
         self.loss_for_gradient_descent = self._lossMSE if ae_type == 'DAE' else self._lossStrange
         self.ae_type = ae_type
         
 
-    def forward(self, x):
-        x = self.encoder(x)
-        x = self.decoder(x)
+    def forward(self, x, return_enc=False):
+        x_enc = self.encoder(x)
+        x = self.decoder(x_enc)
+        if return_enc:
+            return x, x_enc
         return x
     
-    def _lossMSE(self, x, x_noisy, _) -> torch.Tensor:
+    def _lossMSE(self, x, x_noisy, _, __) -> torch.Tensor:
+        #print(x.shape)
+        #print(x_noisy.shape)
         return nn.functional.mse_loss(x, x_noisy)
     
-    def _lossStrange(self, x, x_noisy, lambdaParameter) -> torch.Tensor:
+    def _lossStrange(self, x:torch.Tensor, x_noisy:torch.Tensor, x_enc:torch.Tensor, lambdaParameter:float) -> torch.Tensor:
+        '''
+        x: the output of the autoencoder
+        x_noisy: the input of the autoencoder
+        x_enc: the output of the encoder
+        lambdaParameter: the lambda parameter of the loss function
+        '''
         mse = nn.functional.mse_loss(x, x_noisy)
-        print(self.encoder)
-        print("change here the loss computation")
-        raise NotImplementedError()
-        frobNorm = torch.norm(self.encoder[0].weight, p='fro')
-        return mse + lambdaParameter*frobNorm
+        x_enc.backward(torch.ones(x_enc.size()).to(device), retain_graph=True)
+        reg_loss = torch.sqrt(torch.sum(torch.pow(x_noisy.grad, 2)))
+        x_noisy.grad.data.zero_()
+        return mse + lambdaParameter*reg_loss
     
 
     
-    def train(self, device, epochs=10, batch_size=128, lr=0.001, validation_split=0.1, regularize=0.5, weight_decay=1e-5) -> dict:
+    def train(self, device, epochs=10, batch_size=128, lr=0.001, validation_split=0.1, regularize=0.5, weight_decay=1e-5, validation_noise =0.5) -> dict:
         '''
         device: the device in which to compute the stuff
         epoch: number of epoch
@@ -67,8 +101,8 @@ class Autoencoder(nn.Module):
         # stup training
         optimizer = torch.optim.Adam(self.parameters(), lr=lr, weight_decay=weight_decay)
         x_train, x_val, _ = load_mnist(validation_split)
-        x_train = x_train.view(-1,28*28)
-        x_val = x_val.view(-1, 28*28)
+        x_train = x_train.view(-1, 1, 28, 28)
+        x_val = x_val.view(-1, 1, 28, 28)
         x_val = x_val.to(device)
         train_loader = torch.utils.data.DataLoader(x_train, batch_size=batch_size, shuffle=True)
         history = {
@@ -80,29 +114,39 @@ class Autoencoder(nn.Module):
         # traininig loop
         for epoch in range(epochs):
             for data in train_loader:
-                img = data.to(device)
+                img:torch.Tensor = data.to(device)
                 if self.ae_type == 'DAE':
                     input_img = img + regularize * torch.randn(img.size(), device=device)
                     input_img = torch.clamp(input_img, 0., 1.)
                 else:
                     input_img = img
+                    input_img.requires_grad_(True)
+                    input_img.retain_grad()
                 # ===================forward=====================
-                output = self(input_img)
-                loss = self.loss_for_gradient_descent(output, input_img, regularize)
+                output, enc = self(input_img, return_enc=True)
+                loss = self.loss_for_gradient_descent(output, input_img, enc, regularize)
                 # ===================backward====================
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
             # ===================log========================
 
-            #if self.ae_type == 'DAE':
-            img_val_noisy = x_val + regularize * torch.randn(x_val.size(), device=device)
-            img_val_noisy = torch.clamp(img_val_noisy, 0., 1.)
-            img_val_noisy = img_val_noisy.to(device)
-
-            with torch.no_grad():
-                output_val = self(img_val_noisy)
-                loss_val = self.loss_for_gradient_descent(output_val, img_val_noisy, 0)
+            if self.ae_type == 'DAE':
+                img_val_noisy = x_val + validation_noise * torch.randn(x_val.size(), device=device)
+                img_val_noisy = torch.clamp(img_val_noisy, 0., 1.)
+                img_val_noisy = img_val_noisy.to(device)
+                with torch.no_grad():
+                    output_val = self(img_val_noisy)
+                    loss_val = self._lossMSE(output_val, img_val_noisy, _, _)
+                    history['val_loss'].append(loss_val.item())
+                    history['tr_loss'].append(loss.item())
+            if self.ae_type == 'CAE':
+                img_val_noisy = x_val
+                img_val_noisy.requires_grad_(True)
+                img_val_noisy.retain_grad()
+                output_val, enc_v = self(img_val_noisy, return_enc=True)
+                loss_val = self._lossStrange(output_val, img_val_noisy, enc_v, regularize)
+                optimizer.zero_grad()
                 history['val_loss'].append(loss_val.item())
                 history['tr_loss'].append(loss.item())
 
@@ -122,16 +166,16 @@ if __name__ == '__main__':
                           else 'cpu')
     device = torch.device('mps')
     dae = Autoencoder(
-        activation=nn.Tanh,
-        ae_type='DAE'
+        activation=nn.LeakyReLU,
+        ae_type='CAE'
     )
     start = time.time()
     history = dae.train(device=device,
                         epochs=50, 
                         batch_size=10000, 
                         lr=0.005, 
-                        validation_split=0.1, 
-                        regularize=0.5,
+                        validation_split=0.01, 
+                        regularize=0.01,
                         weight_decay=0,
                         )
     end = time.time()
@@ -140,7 +184,7 @@ if __name__ == '__main__':
     #exit()
     # Plotting the original and reconstructed images
     _, _, x_test = load_mnist()
-    x_test = x_test.view(-1,28*28)
+    x_test = x_test.view(-1,1,28,28)
     x_test = x_test.to(device)
     x_test_noisy = x_test + 0.5 * torch.randn(x_test.size(), device=device)
     x_test_noisy = torch.clamp(x_test_noisy, 0., 1.)
