@@ -92,6 +92,25 @@ class Autoencoder(nn.Module):
         with torch.no_grad():
             x_reconstructed = self(x_noisy)
             return 1 - torch.mean(torch.abs(x - x_reconstructed)).item()
+        
+    def gradientAscend(self, x:torch.Tensor, iteration:int, lr:float) -> torch.Tensor:
+        for i in range(iteration):
+            x.requires_grad_(True)
+            x.retain_grad()
+            output = self(x)
+            loss = self._lossMSE(output, x, 0,0)
+            if x.grad is not None:
+                x.grad.data.zero_()
+            loss.backward()
+            with torch.no_grad():
+                x += lr*x.grad
+                x = torch.clamp(x, 0., 1.)
+            print(f'iteration {i+1}/{iteration}, loss: {loss.item():.4f}', end='\r')
+        x = x.detach()
+        x = x.to('cpu')
+        x.numpy()
+        return x
+        
     
     def train(self, device, epochs=10, batch_size=128, lr=0.001, validation_split=0.1, regularize=0.5, weight_decay=1e-5) -> dict:
         '''

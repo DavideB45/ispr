@@ -14,7 +14,7 @@ device = torch.device('cuda' if torch.cuda.is_available()
                           else 'mps' if torch.backends.mps.is_available()
                           else 'cpu')
 
-path = './thirdAssignement/models/DAE_0.5.pth'
+path = './thirdAssignement/models/DAE_0.8.pth'
 #for file in files:
 model = Autoencoder()
 #model.load_state_dict(torch.load(path + '/' + file))
@@ -28,8 +28,9 @@ x_test = x_test.to(device)
 x_test = x_test.view(-1,1,28,28)
 x_test_noisy = 0.0*x_test + 1.0 * torch.randn(x_test.size(), device=device)
 x_test_noisy = torch.clamp(x_test_noisy, 0., 1.)
-with torch.no_grad():
-    x_reconstructed = model(model(((model(model(x_test_noisy))))))
+#with torch.no_grad():
+x_reconstructed = model.gradientAscend(x_test_noisy, 1100, -30)
+
 
 #    original = x_test.cpu().numpy().reshape(-1)
 #    reconstructed = x_reconstructed.cpu().numpy().reshape(-1)
@@ -42,25 +43,26 @@ with torch.no_grad():
 import matplotlib.pyplot as plt
 n = 10
 plt.figure(figsize=(n*3, 4))
-
+x_test_noisy = x_test_noisy.detach().cpu().numpy()
+x_test = x_test.cpu().numpy()
 for i in range(n):
     # display noisy
     ax = plt.subplot(3, n, i + 1)
-    plt.imshow(x_test_noisy[i].cpu().numpy().reshape(28, 28))
+    plt.imshow(x_test_noisy[i].reshape(28, 28))
     plt.gray()
     ax.get_xaxis().set_visible(False)
     ax.get_yaxis().set_visible(False)
 
     # display reconstruction
     ax = plt.subplot(3, n, i + 1 + n)
-    plt.imshow(x_reconstructed[i].cpu().numpy().reshape(28, 28))
+    plt.imshow(x_reconstructed[i].reshape(28, 28))
     plt.gray()
     ax.get_xaxis().set_visible(False)
     ax.get_yaxis().set_visible(False)
 
     #display original
     ax = plt.subplot(3, n, i + 1 + 2*n)
-    plt.imshow(x_test[i].cpu().numpy().reshape(28, 28))
+    plt.imshow(x_test[i].reshape(28, 28))
     plt.gray()
     ax.get_xaxis().set_visible(False)
     ax.get_yaxis().set_visible(False)
